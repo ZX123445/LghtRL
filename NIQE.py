@@ -426,7 +426,7 @@ def save_results(results, output_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Blind Image Quality Assessment')
-    parser.add_argument('--dir', type=str, default='H:\研究生论文/10_LOL/1/over_Net_testmap/test_results/test_results',
+    parser.add_argument('--dir', type=str, default='/test_results',
                         help='Directory containing images to analyze')
     parser.add_argument('--output', type=str, default='results',
                         help='Output directory for results')

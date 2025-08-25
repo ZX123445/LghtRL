@@ -151,12 +151,12 @@ class TD3Agent:
         self.state_dim = state_dim
         self.action_dim = action_dim
 
-        self.batch_size = 64
+        self.batch_size = 256
         self.gamma = 0.99  # 折扣因子
-        self.tau = 0.005  # 软更新系数
-        self.policy_noise = 0.2
+        self.tau = 0.0007  # 软更新系数
+        self.policy_noise = 0.1
         self.noise_clip = 0.5
-        self.policy_delay = 2
+        self.policy_delay = 6
         self.update_count = 0
 
     def select_action(self, state):
@@ -325,7 +325,7 @@ def apply_global_gamma(image_path, model_path):
 # 使用示例
 if __name__ == "__main__":
     # 设置图像文件夹路径
-    image_folder = "F:/研究生论文/10_image_enhanced/LOLdataset/train/low/"
+    image_folder = "/train/low/"
     output_dir = "training_results"
 
     # 获取所有图像路径
@@ -446,4 +446,5 @@ def calculate_complexity():
 
 
 if __name__ == "__main__":
+
     calculate_complexity()

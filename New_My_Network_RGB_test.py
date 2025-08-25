@@ -9,7 +9,7 @@ import argparse
 import time
 import cv2
 import matplotlib.pyplot as plt
-from New_My_Network_RGB import LowLightEnhancer, LowLightDataset  # 从Net.py导入模型和数据集类
+from Network import LowLightEnhancer, LowLightDataset  # 
 
 # 设备配置
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -292,4 +292,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()

@@ -23,8 +23,8 @@ print(f"Using device: {device}")
 
 # 1. 自定义数据集加载器（增强颜色相关变换）
 class LowLightDataset(Dataset):
-    def __init__(self, low_dir="F:/研究生论文/10_image_enhanced/LOLdataset/train/low/",
-                 high_dir="F:/研究生论文/10_image_enhanced/LOLdataset/train/high/", train=True):
+    def __init__(self, low_dir="/train/low/",
+                 high_dir="/train/high/", train=True):
         self.low_paths = sorted([os.path.join(low_dir, f) for f in os.listdir(low_dir)])
         self.high_paths = sorted([os.path.join(high_dir, f) for f in os.listdir(high_dir)])
         self.train = train
@@ -91,7 +91,6 @@ class MultiHeadAttention(nn.Module):
         return self.to_out(out) + x  # 添加残差连接
 
 
-# 3. 颜色注意力模块（新增）
 class ColorAttention(nn.Module):
     def __init__(self, in_channels=64):
         super().__init__()
@@ -101,15 +100,10 @@ class ColorAttention(nn.Module):
             nn.Conv2d(in_channels // 4, 3, 1),  # 输出RGB三个通道的注意力图
             nn.Sigmoid()
         )
-        self.conv3_64 = nn.Conv2d(3, in_channels, 3, padding=1)
 
     def forward(self, x):
         # 生成颜色注意力图
         color_weights = self.color_attn(x)
-        color_weights = self.conv3_64(color_weights)
-
-        # print("color_weights", color_weights.size())
-        # print("x", x.size())
 
         # 应用颜色注意力
         return x * color_weights, color_weights
@@ -190,7 +184,7 @@ class AttLightFusion(nn.Module):
         )
 
         # 可学习的融合权重
-        self.fusion_weight = nn.Parameter(torch.tensor([0.7, 0.3]), requires_grad=True)
+        self.fusion_weight = nn.Parameter(torch.tensor([0.3, 0.7]), requires_grad=True)
 
         # 颜色校正分支
         self.color_correction = nn.Sequential(
@@ -200,31 +194,14 @@ class AttLightFusion(nn.Module):
             nn.Sigmoid()
         )
 
-        self.conv6_67 = nn.Conv2d(in_channels=6, out_channels=67, kernel_size=3, stride=1, padding=1)
-        self.conv3_64 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1)
 
     def forward(self, stage_feat, low_img):
-        # 路径1: 增强结果与Gamma融合
-        gamma05 = low_img ** 0.5
-        gamma03 = low_img ** 0.3
+
 
         # 使用注意力权重融合
 
         stage_feat = F.interpolate(stage_feat, scale_factor=2, mode='bilinear', align_corners=False)
-        attn_input = torch.cat([stage_feat, gamma05], dim=1)
-        # print("gamma05", gamma05.size())
-        # print("stage_feat", stage_feat.size())
-        attn_input = self.conv6_67(attn_input)
-        # print("attn_input", attn_input.size())
-        attn_weights = self.fusion_attn(attn_input)
-
-        # 融合增强特征和Gamma校正图像
-        p1 = attn_weights * stage_feat + (1 - attn_weights) * (0.7 * gamma05 + 0.3 * gamma03)
-
-        # 路径2: 光照图反馈
-        stage_feat = self.conv3_64(stage_feat)
-        illum_map = self.illum_conv(stage_feat)
-        p2 = low_img * (1.0 + 0.5 * illum_map)  # 调整光照增强强度
+     
 
         # 使用可学习权重进行最终融合
         weights = torch.softmax(self.fusion_weight, dim=0)
@@ -246,7 +223,7 @@ class MultiStageTransformer(nn.Module):
         # 多阶段处理模块（添加残差连接）
         self.stages = nn.ModuleList([
             nn.Sequential(
-                nn.Conv2d(64, 64, 3, padding=1),
+                nn.Conv2d(64, 128, 3, padding=1),
                 nn.GroupNorm(4, 64),
                 nn.GELU(),
                 nn.Conv2d(64, 64, 3, padding=1),
@@ -254,16 +231,6 @@ class MultiStageTransformer(nn.Module):
             ) for _ in range(num_stages)
         ])
 
-        # 上采样到原始分辨率
-        self.upsample = nn.Sequential(
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.PixelShuffle(2),
-            nn.Conv2d(16, 32, 3, padding=1),
-            nn.GELU(),
-            nn.PixelShuffle(2),
-            nn.Conv2d(8, 3, 3, padding=1),
-            nn.Sigmoid()
-        )
 
     def forward(self, low_img):
         x, color_attn = self.transformer(low_img)
@@ -358,7 +325,7 @@ class HybridLoss(nn.Module):
 
 
 # 9. 训练函数（添加可视化）
-def train_model(epochs=100, batch_size=1, lr=1e-4):
+def train_model(epochs=10000, batch_size=10, lr=1e-4):
     # 初始化
     model = LowLightEnhancer().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
@@ -366,7 +333,7 @@ def train_model(epochs=100, batch_size=1, lr=1e-4):
 
     # 学习率调度器
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=5, verbose=True
+        optimizer, mode='min', factor=0.8, patience=6, verbose=True
     )
 
     # 混合精度训练的梯度缩放器
@@ -378,7 +345,7 @@ def train_model(epochs=100, batch_size=1, lr=1e-4):
 
     # 验证集
     val_dataset = LowLightDataset(train=False)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=10, shuffle=False)
 
     # 训练循环
     best_val_loss = float('inf')
@@ -714,7 +681,7 @@ def generate_model_report(model):
 # 修改主函数，在训练后添加模型分析
 if __name__ == "__main__":
     # 开始训练
-    model = train_model(epochs=2000, batch_size=8)
+    model = train_model(epochs=2000, batch_size=16)
 
     # 导出模型
     export_to_onnx(model)
@@ -735,5 +702,6 @@ if __name__ == "__main__":
     # 示例推理
     test_images = ["test_image1.jpg", "test_image2.jpg"]
     enhanced_results = enhance_image(model, test_images, ["result1.jpg", "result2.jpg"], hdr_output=True)
+
 
     print("Enhancement complete!")
